@@ -206,12 +206,16 @@ At the end of Stage 1, you have successfully separated the problem into two part
 
 ---
 ### **Stage 2: Solve for Tilt Components**
+
 **Solving for Tilt:** 
 You have four slope values ( $T_{1A}$ through $T_{2B}$ ). Using the four slope values from Stage 1, you can solve for each individual tilt angle:
 
 $$T_{1A} = \alpha + \beta + \gamma$$
+
 $$T_{1B} = -\alpha + \beta - \gamma$$
+
 $$T_{2A} = -\alpha - \beta + \gamma$$
+
 $$T_{2B} = \alpha - \beta - \gamma$$
 
 **Update** I'm pretty sure you can use all 4 equations to solve for a single variable. This averages the error in each.
@@ -225,15 +229,21 @@ By subtracting equations taken at the same spindle position, you cancel $\alpha$
     <summary>All the calculation steps</summary>
 
     $$T_{1A} = \alpha + \beta + \gamma$$
+  
     $$- T_{1B} = \alpha - \beta + \gamma$$
+  
     $$T_{2A} = -\alpha - \beta + \gamma$$
+  
     $$- T_{2B} = -\alpha + \beta + \gamma$$
+  
     ---
     </details>
 
 
     $$T_{1A} - T_{1B} + T_{2A} - T_{2B} = \alpha + \beta + \gamma + \alpha - \beta + \gamma - \alpha - \beta + \gamma - \alpha + \beta + \gamma$$
+
 - **Formula:**
+
     $$\gamma = \frac{T_{1A} - T_{1B} + T_{2A} - T_{2B}}{4}$$
 
 **Step 2: Calculate the Setup Tilt Error ( $\beta$ )**
@@ -245,14 +255,20 @@ By subtracting equations taken with the same indicator ('A' or 'B') but at diffe
     <summary>All the calculation steps</summary>
 
     $$T_{1A} = \alpha + \beta + \gamma$$
+  
     $$T_{1B} = -\alpha + \beta - \gamma$$
+  
     $$- T_{2A} = \alpha + \beta - \gamma$$
+  
     $$- T_{2B} = -\alpha + \beta + \gamma$$
+  
     ---
     </details>
 
     $$T_{1A} + T_{1B} - T_{2A} - T_{2B} = \alpha + \beta + \gamma - \alpha + \beta - \gamma + \alpha + \beta - \gamma - \alpha + \beta + \gamma$$
+
 * **Formula:**
+
     $$\beta = \frac{T_{1A} + T_{1B} - T_{2A} - T_{2B}}{4}$$
 
 **Step 3: Calculate the Machine Parallelism Error (Machine Tilt) ( $\alpha$ )**
@@ -264,14 +280,20 @@ By adding specific pairs of equations, you can cancel out both the setup error (
     <summary>All the calculation steps</summary>
 
     $$T_{1A} = \alpha + \beta + \gamma$$
+  
     $$- T_{1B} = \alpha - \beta + \gamma$$
+  
     $$- T_{2A} = \alpha + \beta - \gamma$$
+  
     $$T_{2B} = \alpha - \beta - \gamma$$
+  
     ---
     </details>
 
     $$T_{1A} - T_{1B} - T_{2A} + T_{2B} = \alpha + \beta + \gamma + \alpha - \beta + \gamma + \alpha + \beta - \gamma + \alpha - \beta - \gamma$$
+
 - **Formula:**
+
     $$\alpha = \frac{T_{1A} - T_{1B} - T_{2A} + T_{2B}}{4}$$
 
 ---
@@ -282,6 +304,7 @@ The **residuals** of each fit (original data transformed by rotation or shearing
 
 1. Decide on the transformation method based on the acceptable error. See **Modeling Errors: A Detailed Guide to Shearing vs. Rotation**
 2. For the most basic method (shearing), in a perfect, noise-free world, the math works out as follows:
+
     * $R_{1A}(x) = C_{1A}(x) - T_{1A} \cdot x = M(x) + S_A(x)$
     * $R_{1B}(x) = C_{1B}(x) - T_{1B} \cdot x = -M(x) + S_B(x)$
     * $R_{2A}(x) = C_{2A}(x) - T_{2A} \cdot x = -M(x) + S_A(x)$
@@ -294,19 +317,27 @@ In a real measurement with noise, $F_{1A}(x)$ and $F_{1B}(x)$ will be slightly d
 
 * **Final Form Profile 1:**
     $$F_1(x) = \frac{R_{1A}(x) + R_{1B}(x)}{2}$$
+
 * **Final Form Profile 2:**
     $$F_2(x) = \frac{R_{2A}(x) + R_{2B}(x)}{2}$$
 
 Using the two averaged form profiles, you can solve for the individual error profiles.
 
 * **You have:**
+
     * $F_1(x) = M(x) + S(x)$
     * $F_2(x) = -M(x) + S(x)$
+
 * **To find $M(x)$ (Machine Form):** Subtract $F_2(x)$ from $F_1(x)$.
+
     $$F_1(x) - F_2(x) = (M(x) + S(x)) - (-M(x) + S(x)) = 2M(x)$$
+  
     $$M(x) = \frac{F_1(x) - F_2(x)}{2}$$
+  
 * **To find $S(x)$ (Artefact Form):** Add $F_1(x)$ and $F_2(x)$.
+
     $$F_1(x) + F_2(x) = (M(x) + S(x)) + (-M(x) + S(x)) = 2S(x)$$
+  
     $$S(x) = \frac{F_1(x) + F_2(x)}{2}$$
 
 **Note**: TODO: I think there is an issue here, as it averages the artefact side A and side B together. That's okay for tilt, but not okay if we want to extract both Side A and Side B of the artefact. _However_ it's rare that we care about the artefacts form (unless it is what we want to measure). Instead, we typically want to measure the guideway. If we were doing a straightedge reversal, we'd need to adjust the equations to isolate the Side A and Side B. In that case we'd likely adjust the averaging equations to solve for the sides, and not the positions (but don't quote me on this, I'm uncertain). Or maybe they aren't averaged at all? We'd calculate the forms directly from the residuals. We'd still have 4 equations:
@@ -325,13 +356,16 @@ and we'd solve for $S_A(x)$ and $S_B(x)$ first. We have two equations to solve:
     <summary>All the calculation steps</summary>
 
     $$R_{1A}(x) = M(x) + S_A(x)$$
+  
     $$R_{2A}(x) = -M(x) + S_A(x)$$
+  
     ---
     </details>
 
     $$R_{1A}(x) + R_{2A}(x) = M(x) + S_A(x) -M(x) + S_A(x)$$
 
 - **Formula:**
+
     $$S_A(x) = \frac{R_{1A}(x) + R_{2A}(x)}{2}$$
 
 **Step 2: Calculate artefact's form profile of side B ( $S_B(x)$ )**
@@ -341,13 +375,16 @@ and we'd solve for $S_A(x)$ and $S_B(x)$ first. We have two equations to solve:
     <summary>All the calculation steps</summary>
 
     $$R_{1B}(x) = -M(x) + S_B(x)$$
+  
     $$R_{2B}(x) = M(x) + S_B(x)$$
+  
     ---
     </details>
 
     $$R_{1B}(x) + R_{2B}(x) = M(x) + S_B(x) -M(x) + S_B(x)$$
 
 - **Formula:**
+
     $$S_B(x) = \frac{R_{1B}(x) + R_{2B}(x)}{2}$$
 
 **Step 3: Calculate machine form profile ( $M(x)$ )**
@@ -360,15 +397,20 @@ We can solve for M by combining all 4 equations (first inverting $R_{1B}(x)$ and
     <summary>All the calculation steps</summary>
 
     $$R_{1A}(x) = M(x) + S_A(x)$$
+  
     $$- R_{1B}(x) = M(x) - S_B(x)$$
+  
     $$- R_{2A}(x) = M(x) - S_A(x)$$
+  
     $$R_{2B}(x) = M(x) + S_B(x)$$
+  
     ---
     </details>
 
     $$R_{1A}(x) - R_{1B}(x) - R_{2A}(x) + R_{2B}(x) = M(x) + M(x) + M(x) + M(x)$$
 
 - **Formula:**
+
     $$M(x) = \frac{R_{1A}(x) - R_{1B}(x) - R_{2A}(x) + R_{2B}(x)}{4}$$
 
 At least I think that's right (need to verify). This does two things: solves for both artefact surfaces and the guideway, while simultaneously averaging out the error of the guideway. Looking at it, it doesn't actually require any additional calculations, if I'm correct.
