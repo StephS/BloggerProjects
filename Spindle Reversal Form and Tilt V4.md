@@ -1,7 +1,7 @@
 # **A Unified Method for Form and Tilt Measurement**
 This document outlines a powerful, unified metrology method for simultaneously determining the **form** (profile error) and **tilt** (parallelism error) of a machine slideway and a test artefact. It combines the principles of the "Classic Straightedge Reversal" and the "Spindle Parallelism Check" into a single, comprehensive workflow.
 This technique is a variant of square reversal designed to determine the parallelism error between a spindle's axis of rotation and a machine's linear slideway. Its main advantage is that it can isolate the true machine geometry error even when using an imperfect test artefact and accounting for setup errors.
-The process involves mounting the imperfect cylindrical square on the spindle and using a displacement indicator to trace its surface as the slideway moves. The core of the method is a sequence of four measurements where the signs of the different error components ($\alpha, \beta, \gamma$) are systematically manipulated through physical reversals.
+The process involves mounting the imperfect cylindrical square on the spindle and using a displacement indicator to trace its surface as the slideway moves. The core of the method is a sequence of four measurements where the signs of the different error components ( $\alpha, \beta, \gamma$ ) are systematically manipulated through physical reversals.
 
 ## **Core Purpose**
 The primary goal of this method is to solve one of the fundamental problems in precision metrology: separating the geometric errors of the measuring instrument from the errors of the object being measured. It does this by simultaneously solving for six key error components: three form profiles and three tilt angles. By decomposing each measurement into its linear (tilt) and non-linear (form) components, this method allows for a complete characterization of the system's geometric errors from 4 sets of measurements.
@@ -26,7 +26,7 @@ The physical setup and measurement procedure are crucial for acquiring the neces
 * The indicators must be aligned properly for best accuracy. There are two indicator positions: Top and Bottom (or if measuring horizontally, Front and Back). There is a process that can be followed to align the sensor with the axis.
 
 ### **The Measurement Setup: Two Indicators, Two Surfaces**
-The physical setup requires two separate displacement indicators fixed to the machine's moving carriage. Their positions are fixed relative to each other and do not change during the procedure. Alternatively a single indicator can be used, but it requires precise positioning to be performed twice. Knowing which indicator traces which surface is fundamental to how the signs in the equations are derived, and without this clarity, the method is impossible to implement correctly. The two indicators measure the machine error, `$M(x)$`, with opposite signs because they are on opposite sides of the centerline.
+The physical setup requires two separate displacement indicators fixed to the machine's moving carriage. Their positions are fixed relative to each other and do not change during the procedure. Alternatively a single indicator can be used, but it requires precise positioning to be performed twice. Knowing which indicator traces which surface is fundamental to how the signs in the equations are derived, and without this clarity, the method is impossible to implement correctly. The two indicators measure the machine error, $M(x)$, with opposite signs because they are on opposite sides of the centerline.
 
 * **Near Indicator**: The indicator positioned closer to the machine slideway. Example: while measuring the vertical axis on a lathe, the bottom indicator is the Near indicator.
 * **Far Indicator**: The indicator positioned further from the machine slideway. Example: while measuring the vertical axis on a lathe, the top indicator is the Far indicator.
@@ -38,11 +38,11 @@ The entire process is built upon a series of four measurements taken in two spin
 
 1.  **Spindle Position 1 (0°)** spindle at its 0° home position
     * **Measurement $I_{1A}(x)$**: The **Near Indicator** traces **Surface A**.
-    * **Measurement $I_{1B}(x)$**: The **Far Indicator** traces **Surface B**. This reverses the effect of the artefact's own imperfection ($\gamma$).
+    * **Measurement $I_{1B}(x)$**: The **Far Indicator** traces **Surface B**. This reverses the effect of the artefact's own imperfection ( $\gamma$ ).
 
 2.  **Spindle Position 2 (180°)** spindle is rotated precisely 180°.
     * **Measurement $I_{2B}(x)$**: The **Near Indicator** now traces the flipped **Surface B**. This reverses all three tilt components.
-    * **Measurement $I_{2A}(x)$**: The **Far Indicator** now traces the flipped **Surface A**. This reverses the effect of the machine error ($\alpha$) and the setup tilt error ($\beta$).
+    * **Measurement $I_{2A}(x)$**: The **Far Indicator** now traces the flipped **Surface A**. This reverses the effect of the machine error ( $\alpha$ ) and the setup tilt error ( $\beta$ ).
 
 **Note:** After the spindle rotation the surfaces measured by the indicators are swapped.
 
@@ -105,7 +105,7 @@ The following measurements use the subscript ${ij}$ where:
 
     </details>
 <!-- -->
-* $C_{ij}(x)$: Zeroed Form profiles by removing the constant DC offset. Calculated by original data ($I_{ij}$) minus the DC Offset ($b_{ij}(x)$ term)
+* $C_{ij}(x)$: Zeroed Form profiles by removing the constant DC offset. Calculated by original data ( $I_{ij}$ ) minus the DC Offset ( $b_{ij}(x)$ term)
     <details>
     <summary>All the Zeroed Form profiles</summary>
 
@@ -116,7 +116,7 @@ The following measurements use the subscript ${ij}$ where:
 
     </details>
 <!-- -->
-* $R_{ij}(x)$: Form **profile residuals** by removing tilt through the chosen method (shearing or rotation). Calculated from the original data ($I_{ij}$)
+* $R_{ij}(x)$: Form **profile residuals** by removing tilt through the chosen method (shearing or rotation). Calculated from the original data ( $I_{ij}$ )
     <details>
     <summary>All the profile residuals</summary>
 
@@ -127,11 +127,11 @@ The following measurements use the subscript ${ij}$ where:
 
     </details>
 <!-- -->
-* **$F_1(x)$, $F_2(x)$**: The **averaged** Form **profile residuals**. Taken by averaging ($R_{1j}(x)$) and ($R_{2j}(x)$) **Note** Might be optional?
+* **$F_1(x)$, $F_2(x)$**: The **averaged** Form **profile residuals**. Taken by averaging ( $R_{1j}(x)$ ) and ( $R_{2j}(x)$ ) **Note** Might be optional?
 
 ### **The Four Measurement Equations**
 Each raw measurement is the sum of the combined form profile and the combined tilt profile.
-First, we redefine our measurement outputs ($I$) as functions of position $x$. Each function contains both a form component (the profile) and a linear component (the tilt or parallelism error multiplied by $x$).
+First, we redefine our measurement outputs ( $I$ ) as functions of position $x$. Each function contains both a form component (the profile) and a linear component (the tilt or parallelism error multiplied by $x$ ).
 You can create a system of linear equations that can be easily solved to isolate each error component.
 Using the same four-measurement setup, the resulting functions would be:
   
@@ -145,7 +145,7 @@ Using the same four-measurement setup, the resulting functions would be:
 | $I_{2B}(x) = [M(x) + S_B(x)] + (\alpha - \beta - \gamma) \cdot x$ | | (Near Indicator, 180°) |
 | $I_{2A}(x) = [-M(x) + S_A(x)] + (-\alpha - \beta + \gamma) \cdot x$ | | (Far Indicator, 180°) |
 
-***Note:*** In the reversed positions ($I_{1B}$, $I_{2A}$), the machine profile $M(x)$ and its corresponding tilt $\alpha$ are inverted, as is the setup tilt $\beta$.
+***Note:*** In the reversed positions ( $I_{1B}$, $I_{2A}$ ), the machine profile $M(x)$ and its corresponding tilt $\alpha$ are inverted, as is the setup tilt $\beta$.
 
 ---
 ## **4. The Complete Workflow: From Raw Data to Final Results**
@@ -153,14 +153,14 @@ The process involves three main stages: separating the data, solving for tilt, a
 
 ### **Stage 1: Separate Tilt From Form**
 This stage uses linear regression to decompose each of the four raw data channels.
-For each of the four raw measurement functions ($I_{1A}(x)$ through $I_{2B}(x)$), you perform a linear regression (least-squares fit).
+For each of the four raw measurement functions ( $I_{1A}(x)$ through $I_{2B}(x)$ ), you perform a linear regression (least-squares fit).
 
 * The **slope** of the best-fit line gives you the combined tilt component. This yields four slope values, which we can call $T_{1A}, T_{1B}, T_{2A},$ and $T_{2B}$. For example, $T_{1A} = \alpha + \beta + \gamma$.
 * The **DC Offset** from the best-fit line gives you the combined offset terms. The yields four offset values, which we can call $b_{1A}, b_{1B}, b_{2A},$ and $b_{2B}$
 
 #### 1. **Perform Linear Regression**:
 
-For each of the four data profiles ($I_{ij}(x)$), calculate the best-fit line (least squares fit). The **slope** (aka m term) of the four best-fit line from the least squares calculations results in the four combined tilt components ($T_{ij}$). We also need the constant (b term) to remove any offset.
+For each of the four data profiles ( $I_{ij}(x)$ ), calculate the best-fit line (least squares fit). The **slope** (aka m term) of the four best-fit line from the least squares calculations results in the four combined tilt components ( $T_{ij}$ ). We also need the constant (b term) to remove any offset.
 
 #### 2. **Extract Tilt Components**: The **slope** of each best-fit line gives you the combined tilt values.
 * $T_{1A} = \alpha + \beta + \gamma$
@@ -176,12 +176,12 @@ The best and most robust methodology is to **remove the the constant offset befo
 **Why This Is the Correct Approach**
 
 * **The Arbitrary Offset is a Nuisance Variable**: As you said, the measurement's DC offset `b` is arbitrary. It depends on how the operator zeroed the indicator, not on the physics of the part. We need to remove its influence.
-* **Rotation and Shape Distortion**: The physical rotation occurs around the spindle's axis. The *shape distortion* we are trying to model comes from the fact that different parts of the form profile (the "waviness" $S(x)$) have different heights and are therefore shifted laterally by different amounts.
+* **Rotation and Shape Distortion**: The physical rotation occurs around the spindle's axis. The *shape distortion* we are trying to model comes from the fact that different parts of the form profile (the "waviness" $S(x)$ ) have different heights and are therefore shifted laterally by different amounts.
 * **Uniform vs. Differential Shift**: A large DC offset `b` (or the unknown distance to the centerline) only contributes a **uniform lateral shift** to the entire profile. It moves the whole curve left or right, but it does not change its *shape*. The shape distortion comes purely from the **differential shifts** caused by the varying height of the zero-centered form profile $S(x)$.
 
 **The Most Robust Workflow**
 
-1. **Isolate the Zero-Centered Form**: For each raw measurement (e.g., $I_{1A}(x)$), perform a linear regression to find the best-fit line $y_{fit} = \theta \cdot x + b$. The result is the zero-centered form profile: $C_{1A}(x) = I_{1A}(x) - b_{1A}$.
+1. **Isolate the Zero-Centered Form**: For each raw measurement (e.g., $I_{1A}(x)$ ), perform a linear regression to find the best-fit line $y_{fit} = \theta \cdot x + b$. The result is the zero-centered form profile: $C_{1A}(x) = I_{1A}(x) - b_{1A}$.
 2. **Rotate the Zero-Centered Form**: Apply the rotation transformation **only to this form profile $F(x)$**. This correctly calculates the *shape distortion* caused by the rotation, completely independent of the unknown and arbitrary measurement offset.
 3. **Proceed**: Use this correctly de-tilted form profile in all subsequent calculations.
 
@@ -202,12 +202,12 @@ $$C_{ij}(x) = I_{ij}(x) - b_{ij}$$
 </details>
 <br>
 
-At the end of Stage 1, you have successfully separated the problem into two parts: a set of four tilt values ($T_{ij}$) and a set of 4 Offset Zeroed form profiles ($C_{1A}(x), C_{1B}(x), C_{2A}(x), C_{2B}(x)$).
+At the end of Stage 1, you have successfully separated the problem into two parts: a set of four tilt values ( $T_{ij}$ ) and a set of 4 Offset Zeroed form profiles ( $C_{1A}(x), C_{1B}(x), C_{2A}(x), C_{2B}(x)$ ).
 
 ---
 ### **Stage 2: Solve for Tilt Components**
 **Solving for Tilt:** 
-You have four slope values ($T_{1A}$ through $T_{2B}$). Using the four slope values from Stage 1, you can solve for each individual tilt angle:
+You have four slope values ( $T_{1A}$ through $T_{2B}$ ). Using the four slope values from Stage 1, you can solve for each individual tilt angle:
 
 $$T_{1A} = \alpha + \beta + \gamma$$
 $$T_{1B} = -\alpha + \beta - \gamma$$
@@ -216,7 +216,7 @@ $$T_{2B} = \alpha - \beta - \gamma$$
 
 **Update** I'm pretty sure you can use all 4 equations to solve for a single variable. This averages the error in each.
 
-**Step 1: Calculate the Artefact Imperfection (Artefact Tilt) ($\gamma$)**
+**Step 1: Calculate the Artefact Imperfection (Artefact Tilt) ( $\gamma$ )**
 By subtracting equations taken at the same spindle position, you cancel $\alpha$ and $\beta$.
 
 - **Calculation:**
@@ -236,7 +236,7 @@ By subtracting equations taken at the same spindle position, you cancel $\alpha$
 - **Formula:**
     $$\gamma = \frac{T_{1A} - T_{1B} + T_{2A} - T_{2B}}{4}$$
 
-**Step 2: Calculate the Setup Tilt Error ($\beta$)**
+**Step 2: Calculate the Setup Tilt Error ( $\beta$ )**
 By subtracting equations taken with the same indicator ('A' or 'B') but at different spindle positions, you cancel $\alpha$ and $\gamma$.
 
 - **Calculation:**
@@ -255,8 +255,8 @@ By subtracting equations taken with the same indicator ('A' or 'B') but at diffe
 * **Formula:**
     $$\beta = \frac{T_{1A} + T_{1B} - T_{2A} - T_{2B}}{4}$$
 
-**Step 3: Calculate the Machine Parallelism Error (Machine Tilt) ($\alpha$)**
-By adding specific pairs of equations, you can cancel out both the setup error ($\beta$) and the artefact error ($\gamma$).
+**Step 3: Calculate the Machine Parallelism Error (Machine Tilt) ( $\alpha$ )**
+By adding specific pairs of equations, you can cancel out both the setup error ( $\beta$ ) and the artefact error ( $\gamma$ ).
 
 - **Calculation:**
 
@@ -318,7 +318,7 @@ $$R_{2B}(x) = M(x) + S_B(x)$$
 
 and we'd solve for $S_A(x)$ and $S_B(x)$ first. We have two equations to solve:
 
-**Step 1: Calculate artefact's form profile of side A ($S_A(x)$)**
+**Step 1: Calculate artefact's form profile of side A ( $S_A(x)$ )**
 - **Calculation:**
 
     <details>
@@ -334,7 +334,7 @@ and we'd solve for $S_A(x)$ and $S_B(x)$ first. We have two equations to solve:
 - **Formula:**
     $$S_A(x) = \frac{R_{1A}(x) + R_{2A}(x)}{2}$$
 
-**Step 2: Calculate artefact's form profile of side B ($S_B(x)$)**
+**Step 2: Calculate artefact's form profile of side B ( $S_B(x)$ )**
 - **Calculation:**
 
     <details>
@@ -350,7 +350,7 @@ and we'd solve for $S_A(x)$ and $S_B(x)$ first. We have two equations to solve:
 - **Formula:**
     $$S_B(x) = \frac{R_{1B}(x) + R_{2B}(x)}{2}$$
 
-**Step 3: Calculate machine form profile ($M(x)$)**
+**Step 3: Calculate machine form profile ( $M(x)$ )**
 
 We can solve for M by combining all 4 equations (first inverting $R_{1B}(x)$ and $R_{2A}(x)$ equations)
 
@@ -377,14 +377,14 @@ TODO: This can also be expanded upon if we decide to measure the horizontal and 
 
 ---
 
-By following this unified procedure, you successfully use a single set of four measurements to extract all the desired information: the machine's parallelism error ($\alpha$), the machine's form error ($M(x)$), and the artefact's form errors ($S_A(x)$ and $S_B(x)$), while also solving for the setup and artefact tilt errors ($\beta$ and $\gamma$).
+By following this unified procedure, you successfully use a single set of four measurements to extract all the desired information: the machine's parallelism error ( $\alpha$ ), the machine's form error ( $M(x)$ ), and the artefact's form errors ( $S_A(x)$ and $S_B(x)$ ), while also solving for the setup and artefact tilt errors ( $\beta$ and $\gamma$ ).
 
 ---
 ## **5. Practical Considerations: Quantifying and Minimizing Error**
 The accuracy of the results depends on understanding and managing the sources of error.
 
 ### **Systematic Errors: Imperfect Reversal**
-Real-world mechanical reversals are never perfect. Unintended shifts ($\Delta x$) during the 180° rotation can introduce errors that are a primary limitation of the method's accuracy. These are minimized with high-quality fixtures but must be considered in the final uncertainty budget.
+Real-world mechanical reversals are never perfect. Unintended shifts ( $\Delta x$ ) during the 180° rotation can introduce errors that are a primary limitation of the method's accuracy. These are minimized with high-quality fixtures but must be considered in the final uncertainty budget.
 
 TODO: show the equation for the shift
 
@@ -401,7 +401,7 @@ The core choice is between:
 This method "shears" the profile by subtracting the best-fit linear trend from the data.
 
 ##### **Methodology**
-1.  A best-fit line, $y_{fit} = \theta \cdot x + b$, is calculated for a raw data profile (e.g., $I_{1A}(x)$). The slope, $\theta$, represents the combined tilt.
+1.  A best-fit line, $y_{fit} = \theta \cdot x + b$, is calculated for a raw data profile (e.g., $I_{1A}(x)$ ). The slope, $\theta$, represents the combined tilt.
 2.  This line is subtracted from the original data to get the form profile: $F(x) = I_{1A}(x) - y_{fit} - b$.
 
 #### **Method 2: The Rotation Method**
@@ -418,11 +418,11 @@ TODO: Add notes on thickness calculations used during rotation transformation
 #### **Calculating Modeling Errors***
 
 #### **Step 1: Perform Initial Data Separation**
-* Run the **Stage 1** analysis on your raw data (e.g., $I_{1A}(x)$).
+* Run the **Stage 1** analysis on your raw data (e.g., $I_{1A}(x)$ ).
 * This gives you the necessary inputs for the error analysis:
     * **$\theta$ (Overall Tilt Angle):**
         * **Description:** The main slope of the measured profile, in radians.
-        * **How to get it:** This is the slope of the best-fit line calculated during the linear regression of your raw data (e.g., $T_{1A}$).
+        * **How to get it:** This is the slope of the best-fit line calculated during the linear regression of your raw data (e.g., $T_{1A}$ ).
     * The initial form profile, **$F(x)$** (the residuals of the fit).
 
 #### **Shearing Error: A Systematic Approximation Error**
@@ -432,7 +432,7 @@ This error is the result of using a linear "shear" to approximate a circular "ro
     $$Error_{shear}(x) \approx -S(x) \cdot \frac{\theta^2}{2}$$
 * **What this means:**
     * The error at any point $x$ is proportional to the height of the form profile $S(x)$ at that point. Tallest peaks and deepest valleys have the most error.
-    * The error is proportional to the **square of the tilt angle ($\theta^2$)**. This is crucial—it tells us that this error shrinks extremely fast as the tilt gets smaller, making it negligible in most high-precision cases.
+    * The error is proportional to the **square of the tilt angle ( $\theta^2$ )**. This is crucial—it tells us that this error shrinks extremely fast as the tilt gets smaller, making it negligible in most high-precision cases.
 
 #### **Rotation Error: A Data-Dependent Interpolation Error**
 This error occurs when you resample the correctly rotated data back onto the original grid. For linear interpolation, the error is greatest where the profile is most curved (i.e., has the largest second derivative). If you require the highest possible physical fidelity for a measurement with large angles, then the more complex rotation method is justified.
@@ -442,8 +442,8 @@ This error occurs when you resample the correctly rotated data back onto the ori
     where the lateral shift is $\Delta x \approx S(x) \cdot \theta$. Substituting this in gives:
     $$Error_{interp}(x) \approx \frac{(S(x) \cdot \theta)^2}{8} \left| \frac{d^2S}{dx^2} \right|_{x}$$
 * **What this means:**
-    * This error is also proportional to the **square of the tilt angle ($\theta^2$)** and the **square of the feature height ($S(x)^2$)**.
-    * Critically, it depends on the **local curvature ($\frac{d^2S}{dx^2}$)**. A perfectly straight or gently sloping profile has very little interpolation error, even with a large shift. A profile with sharp, tight curves will have a large interpolation error.
+    * This error is also proportional to the **square of the tilt angle ( $\theta^2$ )** and the **square of the feature height ( $S(x)^2$ )**.
+    * Critically, it depends on the **local curvature ( $\frac{d^2S}{dx^2}$ )**. A perfectly straight or gently sloping profile has very little interpolation error, even with a large shift. A profile with sharp, tight curves will have a large interpolation error.
 
 ---
 #### **2. Beyond Worst-Case: A Statistical Approach to Error**
@@ -453,7 +453,7 @@ Worst-case analysis can be misleading if driven by a single outlier. A statistic
 Instead of just comparing the maximum error values, the more robust method is to compare their **Root Mean Square (RMS)** values. The RMS gives a measure of the average magnitude of the error across the entire profile.
 
 #### **The Methodology**
-1.  **Calculate the Full Error Profiles**: After you've solved for the form profiles ($M(x)$, $S_A(x)$, $S_B(x)$) and the tilt angle $\theta$, use the more accurate formulas above to calculate the estimated error *for every point x* in your dataset. This gives you two new data vectors: $Error_{shear}(x)$ and $Error_{interp}(x)$.
+1.  **Calculate the Full Error Profiles**: After you've solved for the form profiles ( $M(x)$, $S_A(x)$, $S_B(x)$ ) and the tilt angle $\theta$, use the more accurate formulas above to calculate the estimated error *for every point x* in your dataset. This gives you two new data vectors: $Error_{shear}(x)$ and $Error_{interp}(x)$.
 2.  **Calculate the RMS of Each Error Profile**: The RMS is calculated as:
     $$RMS = \sqrt{\frac{1}{N} \sum_{i=1}^{N} (error_i)^2}$$
     Calculate $RMS_{shear}$ and $RMS_{interp}$.
@@ -489,9 +489,9 @@ $$Error_{thickness} \approx \frac{dS_B}{dx} \cdot \Delta x \approx \frac{dS_B}{d
 
 This error becomes significant when you have a combination of:
 
-  * A **thick artefact** (large $D$).
-  * A **large tilt angle** ($\theta$).
-  * A **complex surface form** (large local slope $\frac{dS_B}{dx}$).
+  * A **thick artefact** (large $D$ ).
+  * A **large tilt angle** ( $\theta$ ).
+  * A **complex surface form** (large local slope $\frac{dS_B}{dx}$ ).
 
 #### **How to use it in the calculations**
 
@@ -520,7 +520,7 @@ The model for the four measurements becomes:
 4. **Near Indicator, 180°:** measures the machine and side B:
     $$I_{2B}(x) = [M(x) + S_B(x)] + (\alpha - \beta - \gamma) \cdot x$$
 
-To make this work in a solver, the continuous functions ($M(x)$, $S_A(x)$, $S_B(x)$) must be **parameterized** — represented by a set of coefficients for a basis function, like a polynomial or a series of splines. The solver then finds the best values for these coefficients alongside the best values for the tilt angles $\alpha, \beta, \text{ and } \gamma$.
+To make this work in a solver, the continuous functions ( $M(x)$, $S_A(x)$, $S_B(x)$ ) must be **parameterized** — represented by a set of coefficients for a basis function, like a polynomial or a series of splines. The solver then finds the best values for these coefficients alongside the best values for the tilt angles $\alpha, \beta, \text{ and } \gamma$.
 
 ---
 ### **The Accuracy Advantage: A Holistic Approach**
@@ -551,7 +551,7 @@ The solution is found using a sophisticated, multi-stage process that ensures bo
 
 #### **Stage 1: Generate a Robust Initial Guess**
 Because nonlinear solvers can be sensitive, we first run a simpler, two-stage analysis to get a high-quality starting point.
-1.  **Separate Form and Tilt**: A best-fit line ($y = mx + b$) is calculated for each of the four raw measurement channels. The slope ($m$) gives a preliminary estimate of the combined tilt, and the residuals ($I(x) - (mx + b)$) give a preliminary estimate of the combined form.
+1.  **Separate Form and Tilt**: A best-fit line ( $y = mx + b$ ) is calculated for each of the four raw measurement channels. The slope ( $m$ ) gives a preliminary estimate of the combined tilt, and the residuals ( $I(x) - (mx + b)$ ) give a preliminary estimate of the combined form.
 2.  **Solve for Initial Parameters**: Simple algebraic manipulation of the preliminary tilts and forms yields an initial guess for $\alpha, \beta, \gamma$, and the coefficients that describe the form profiles (typically using polynomials).
 
 #### **Stage 2: The Nonlinear Least-Squares Optimization**
@@ -573,5 +573,5 @@ The accuracy of this method is limited by several factors that must be understoo
 * **Systematic Errors**: The largest source of uncertainty is often an **imperfect mechanical reversal**. Any unintended shift during the 180° rotation introduces errors that cannot be solved for and must be minimized through careful experimental design and included in the final uncertainty budget.
 * **Random Errors**: Electronic noise, vibration, and thermal drift introduce random errors into the measurements. The effect of this noise is significantly reduced by the **holistic nature of the least-squares fit**, which finds a best-fit across all four noisy channels simultaneously.
 * **Modeling Errors**:
-    * **Shearing vs. Rotation**: The choice of how to remove tilt introduces a small modeling error. The error from the shearing approximation is systematic and predictable ($Error \propto \theta^2$), while the error from rotation is a data-processing error from interpolation ($Error \propto (\text{local curvature})$). A statistical (RMS) comparison of these errors can determine the best method for a given dataset.
+    * **Shearing vs. Rotation**: The choice of how to remove tilt introduces a small modeling error. The error from the shearing approximation is systematic and predictable ( $Error \propto \theta^2$ ), while the error from rotation is a data-processing error from interpolation ( $Error \propto (\text{local curvature})$ ). A statistical (RMS) comparison of these errors can determine the best method for a given dataset.
     * **Parameterization**: The form profiles are modeled using a basis function (e.g., polynomials, splines, or Fourier series). The choice of the **order** of this function is critical. Too low an order will not be able to capture the true shape of the surface (underfitting), while too high an order can lead to fitting noise instead of the signal (overfitting). This choice must be made carefully based on the expected nature of the surfaces.
