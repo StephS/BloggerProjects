@@ -239,7 +239,9 @@ def build_equation_system(config: SpindleConfiguration) -> EquationSystem:
             T_alpha = tilts.alpha_x * sp.sin(theta_ind_rad) + tilts.alpha_y * sp.cos(theta_ind_rad)
             T_beta = tilts.beta_x * sp.sin(theta_surf_rad) + tilts.beta_y * sp.cos(theta_surf_rad)
             T_gamma = tilts.gamma
-            tilt_eq = sp.trigsimp(T_alpha + T_beta + T_gamma)
+            # TODO I think I had alpga and beta inverted? so inverting them here makes the synthetic data match. need to verify why.
+            # TODO also need to check X vs Y slope. I really need more real data. 
+            tilt_eq = sp.trigsimp(- T_alpha - T_beta + T_gamma)
             tilt_equations[key] = tilt_eq
 
             # Form equation: F = M·ind + S
