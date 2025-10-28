@@ -10,9 +10,9 @@ import textwrap
 from enum import StrEnum
 from typing import Any, Dict, List, Optional, Tuple
 import sympy as sp
+import math
 
-
-def convert_str_to_sp(rational_string):
+def convert_str_to_sympy(rational_string, type = sp.Rational):
     """
     Converts a comma-separated string of rational numbers into a list of sympy.Rational objects.
 
@@ -22,7 +22,7 @@ def convert_str_to_sp(rational_string):
     Returns:
         list: A list of sympy.Rational objects.
     """
-    return [sp.Rational(part.strip()) for part in rational_string.split(',')]
+    return [type(part.strip()) for part in rational_string.split(",")]
 
 
 class Colors(StrEnum):
@@ -99,8 +99,11 @@ class DebugPrinter:
 # Core Math Utilities
 # ============================================================================
 
-# speed things up a little
+# Speed optimization: pre-create commonly used constants
 RATIONAL_360 = sp.Rational(360)
+INTEGER_2 = sp.Integer(2)
+
+
 def get_surface_angle(ind_deg: sp.Rational, spin_deg: sp.Rational) -> sp.Rational:
     """
     Calculate clockwise surface angle from indicator and spindle positions (CCW).
@@ -121,7 +124,7 @@ def get_surface_angle(ind_deg: sp.Rational, spin_deg: sp.Rational) -> sp.Rationa
     """
     return (RATIONAL_360 - (ind_deg - spin_deg)) % RATIONAL_360  # pyright: ignore[reportOperatorIssue]
 
-INTEGER_2 = sp.Integer(2)
+
 def _least_squares_core(x_values: List[sp.Rational], y_values: List[sp.Rational]) -> Tuple[sp.Rational, sp.Rational]:
     """
     Core least squares fit: y = intercept + slope * x using exact SymPy arithmetic.
@@ -144,7 +147,7 @@ def _least_squares_core(x_values: List[sp.Rational], y_values: List[sp.Rational]
     if n < INTEGER_2:
         raise ValueError("Least squares requires at least 2 points.")
 
-    sum_x = sum(x_values) # pyright: ignore[reportArgumentType, reportCallIssue]
+    sum_x = sum(x_values)  # pyright: ignore[reportArgumentType, reportCallIssue]
     sum_y = sum(y_values)  # pyright: ignore[reportArgumentType, reportCallIssue]
     sum_xy: sp.Rational = sum(x * y for x, y in zip(x_values, y_values))  # pyright: ignore[reportAssignmentType, reportOperatorIssue]
     sum_x2 = sum(x**INTEGER_2 for x in x_values)  # pyright: ignore[reportArgumentType, reportCallIssue]
@@ -164,7 +167,7 @@ def _least_squares_core(x_values: List[sp.Rational], y_values: List[sp.Rational]
     return sp.simplify(slope), sp.simplify(intercept)
 
 
-def remove_form_trend(form_series: List[sp.Rational], z_positions: List[sp.Rational]) -> List[sp.Rational]:
+def remove_form_trend(form_series: List[sp.Expr] | List[sp.Rational], z_positions: List[sp.Rational]) -> List[sp.Rational]:
     """
     Removes linear trend (slope + offset) from form series using least squares.
 
@@ -200,6 +203,83 @@ def remove_form_trend(form_series: List[sp.Rational], z_positions: List[sp.Ratio
 # ============================================================================
 
 
+def preview_series(series, series_name: str, max_preview: int = 5, show_all = False) -> str:
+    """
+    Format series for display with optional truncation.
+
+    Handles both list series (forms) and scalar values (tilts).
+
+    Args:
+        series: Either a list of values or a single value
+        series_name: Name/label for the series
+        max_preview: Maximum number of values to show before truncating
+
+    Returns:
+        Formatted string for display
+
+    Examples:
+        >>> preview_series([1.0, 2.0, 3.0], "M_x", max_preview=5)
+        'M_x = [1.000000e+00, 2.000000e+00, 3.000000e+00] (3 values)'
+
+        >>> preview_series(0.001745, "alpha_y", max_preview=5)
+        'alpha_y = 0.001745'
+    """
+    if not isinstance(series, list):
+        # Scalar value - just return formatted string
+        return f"{series_name} = {series}"
+
+    # List series - format with truncation if needed
+    if len(series) <= max_preview or show_all:
+        preview = [f"{float(v):.6e}" for v in series]
+    else:
+        _first = int(math.ceil(max_preview/2))
+        _last = max_preview - _first
+
+        # Show first 3, ellipsis, last 2
+        preview = [f"{float(v):.6e}" for v in series[:_first]] + ["..."] + [f"{float(v):.6e}" for v in series[-_last:]]
+
+    return f"{series_name} = [{', '.join(preview)}] ({len(series)} values)"
+
+
+def format_comparison_stats(stats: Dict[str, Any], label: str = "", indent: int = 2) -> str:
+    """
+    Format comparison statistics for display.
+
+    Helper for RawMeasurementData.print_comparison() and similar functions.
+    Handles both scalar statistics and per-configuration breakdowns.
+
+    Args:
+        stats: Dictionary of statistics (max, rms, etc.)
+        label: Optional label for the section
+        indent: Number of spaces to indent
+
+    Returns:
+        Formatted string
+    """
+    lines = []
+    prefix = " " * indent
+
+    if label:
+        lines.append(f"{prefix}{label}:")
+
+    # Format main statistics
+    if "max" in stats:
+        max_val = float(stats["max"])
+        lines.append(f"{prefix}  Max: {max_val:.8f}  ({max_val:.4e})")
+
+    if "rms" in stats:
+        rms_val = float(stats["rms"])
+        lines.append(f"{prefix}  RMS: {rms_val:.8f}  ({rms_val:.4e})")
+
+    # Format any additional fields
+    for key, value in stats.items():
+        if key not in ["max", "rms", "all_diffs"]:
+            if isinstance(value, (int, float, sp.Rational)):
+                lines.append(f"{prefix}  {key}: {float(value):.8f}")
+
+    return "\n".join(lines)
+
+
 def format_table(data: Dict[str, Any], title: Optional[str] = None) -> str:
     """Format dictionary as aligned table string."""
     if title:
@@ -218,7 +298,7 @@ def format_table(data: Dict[str, Any], title: Optional[str] = None) -> str:
     return "\n".join(output)
 
 
-def format_tilt_angle(slope: sp.Rational) -> str:
+def format_tilt_angle(slope: sp.Rational | sp.Float) -> str:
     """
     Format tilt slope as both slope value and angle in degrees.
 
@@ -252,6 +332,63 @@ def slope_from_deg(deg: sp.Rational | str) -> sp.Rational:
         Slope value (unitless)
     """
     return sp.simplify(sp.tan(sp.rad(sp.Rational(deg))))
+
+
+# ============================================================================
+# Configuration Helpers
+# ============================================================================
+
+
+def create_standard_config(
+    indicator_angles: str,
+    spindle_angles: str,
+    z_step: float,
+    z_count: Optional[int] = None,
+    z_start: float = 0,
+    z_stop: Optional[float] = None,
+    diameter: float = 50,
+):
+    """
+    Create standard spindle configuration.
+
+    Can specify Z positions either by count OR by range:
+    - Count-based: z_count=11, z_step=10 → [0, 10, 20, ..., 100]
+    - Range-based: z_start=0, z_stop=100, z_step=10 → [0, 10, 20, ..., 100]
+
+    Args:
+        indicator_angles: Indicator positions in degrees
+        spindle_angles: Spindle positions in degrees
+        z_count: Number of Z positions (if specified, uses count-based)
+        z_start: Starting Z position (default 0)
+        z_stop: Ending Z position (required if not using z_count)
+        z_step: Z increment
+        diameter: Nominal artifact diameter
+
+    Returns:
+        SpindleConfiguration ready for use
+
+    Examples:
+        >>> # Count-based (for tests)
+        >>> config = create_standard_config([0, 180], [0, 180], z_count=11)
+
+        >>> # Range-based (for custom measurements)
+        >>> config = create_standard_config([0, 180], [0, 180],
+        ...                                  z_start=5, z_stop=105, z_step=5)
+    """
+    from models import SpindleConfiguration  # Import here to avoid circular dependency
+
+    if z_count is not None:
+        # Count-based: generate z_count positions starting at z_start
+        z_positions = [sp.Rational(z_start + i * z_step) for i in range(z_count)]
+    elif z_stop is not None:
+        # Range-based: generate from z_start to z_stop (inclusive)
+        z_positions = [sp.Rational(z) for z in range(int(z_start), int(z_stop) + 1, int(z_step))]
+    else:
+        raise ValueError("Must specify either z_count or z_stop")
+
+    return SpindleConfiguration(
+        indicator_angles=indicator_angles, spindle_angles=spindle_angles, nominal_diameter=diameter, z_positions=z_positions
+    )
 
 
 # ============================================================================

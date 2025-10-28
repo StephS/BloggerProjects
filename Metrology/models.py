@@ -8,9 +8,17 @@ All dataclasses and type structures used throughout the system.
 
 import sympy as sp
 from typing import Callable, List, Dict, Set, Any, Tuple, Optional, Union, TypeAlias, NamedTuple
-from dataclasses import dataclass, field
+from dataclasses import InitVar, dataclass, field
 from enum import Enum
-from utils import DEBUG, Colors, USE_UNICODE, format_tilt_angle, remove_form_trend
+from utils import (
+    DEBUG,
+    Colors,
+    USE_UNICODE,
+    format_tilt_angle,
+    remove_form_trend,
+    preview_series as util_preview_series,
+    format_comparison_stats,
+)
 
 # ============================================================================
 # Type Aliases
@@ -42,10 +50,14 @@ class ConfigKey(NamedTuple):
     def __str__(self) -> str:
         return f"({int(self.indicator)},{int(self.spindle)})"
 
+
 class CompareResult(NamedTuple):
+    """Result of comparing two values (true vs solved)."""
+
     true: List[sp.Rational] | sp.Rational
     solved: List[sp.Rational] | sp.Rational
     error: sp.Rational
+
 
 # ============================================================================
 # Enums
@@ -145,7 +157,7 @@ class Tilts:
         for name in ["alpha_x", "alpha_y", "beta_x", "beta_y", "gamma"]:
             val_self = self[name]
             val_other = other[name]
-            diff = abs(val_self - val_other)
+            diff = abs(val_self - val_other) # pyright: ignore[reportOperatorIssue]
             matches = diff <= tolerance
             results[name] = (matches, diff)
         return results
@@ -177,9 +189,9 @@ class Forms:
     - Numerical series: List[sp.Expr] (form profile at multiple Z positions)
     """
 
-    M_x: sp.Symbol | sp.Expr | List[sp.Expr]
-    M_y: sp.Symbol | sp.Expr | List[sp.Expr]
-    S: Dict[str, sp.Symbol | sp.Expr | List[sp.Expr]] = field(default_factory=dict)
+    M_x: sp.Symbol | sp.Expr | List[sp.Expr] | List[sp.Rational]
+    M_y: sp.Symbol | sp.Expr | List[sp.Expr] | List[sp.Rational]
+    S: Dict[str, sp.Symbol | sp.Expr | List[sp.Expr] | List[sp.Rational]] = field(default_factory=dict)
 
     @property
     def is_symbolic(self) -> bool:
@@ -199,10 +211,12 @@ class Forms:
 
     @classmethod
     def _to_surf_key(cls, angle: int) -> str:
+        """Convert angle to surface key string."""
         return f"S_{{{int(angle)}}}"
-    
+
     @classmethod
     def _to_angle(cls, var_name: str) -> int:
+        """Extract angle from surface key string."""
         return int(var_name.split("_")[1].strip("{}"))
 
     def add_surface_symbol(self, angle: int) -> None:
@@ -211,10 +225,11 @@ class Forms:
         if key not in self.S:
             self.S[key] = sp.Symbol(key, real=True)
 
-    def __getitem__(self, key: str | int) -> sp.Symbol | sp.Expr | List[sp.Expr]:
+    def __getitem__(self, key: str | int | sp.Symbol) -> sp.Symbol | sp.Expr | List[sp.Expr] | List[sp.Rational]:
+        # Handle Symbol keys (allows passing symbols directly)
         if isinstance(key, sp.Symbol):
-            # attempt to find by name
             key = key.name
+
         if isinstance(key, int):
             return self.S[self._to_surf_key(key)]
         elif key in ["M_x", "M_y"]:
@@ -222,7 +237,7 @@ class Forms:
         else:
             return self.S[key]
 
-    def __setitem__(self, key: str | int, value: sp.Symbol | sp.Expr | List[sp.Expr]) -> None:
+    def __setitem__(self, key: str | int, value: sp.Symbol | sp.Expr | List[sp.Expr] | List[sp.Rational]) -> None:
         if isinstance(key, int):
             self.S[self._to_surf_key(key)] = value
         elif key in ["M_x", "M_y"]:
@@ -230,19 +245,19 @@ class Forms:
         else:
             self.S[key] = value
 
-    def to_list(self) -> List[sp.Symbol | sp.Expr | List[sp.Expr]]:
+    def to_list(self) -> List[sp.Symbol | sp.Expr | List[sp.Expr] | List[sp.Rational]]:
         """Return all form variables as ordered list: [M_x, M_y, S_0, S_90, ...]"""
-        result: List[sp.Symbol | sp.Expr | List[sp.Expr]] = [self.M_x, self.M_y]
-        surface_values = self.surface_values()
-        result.extend(surface_values)
+        result: List[sp.Symbol | sp.Expr | List[sp.Expr] | List[sp.Rational]] = [self.M_x, self.M_y]
+        result.extend(self.surface_values())
         return result
 
-    def surface_values(self):
-        # always sort (there was some error in comparison if we don't sort)
-        surface_keys = sorted(self.S.keys(), key=lambda s: Forms._to_angle(s))
+    def surface_values(self) -> List[sp.Symbol | sp.Expr | List[sp.Expr] | List[sp.Rational]]:
+        """Return sorted list of surface form values."""
+        # Always sort to ensure consistent ordering
+        surface_keys = sorted(self.S.keys(), key=self._to_angle)
         return [self.S[k] for k in surface_keys]
 
-    def to_dict(self) -> Dict[str, sp.Symbol | sp.Expr | List[sp.Expr]]:
+    def to_dict(self) -> Dict[str, sp.Symbol | sp.Expr | List[sp.Expr] | List[sp.Rational]]:
         """Return all form variables as dictionary."""
         return {"M_x": self.M_x, "M_y": self.M_y, **self.S}
 
@@ -272,13 +287,13 @@ class Forms:
                 if len(val_self) != len(val_other):
                     results[var_name] = (False, None)
                     continue
-                diffs = [abs(v1 - v2) for v1, v2 in zip(val_self, val_other)]
+                diffs = [abs(v1 - v2) for v1, v2 in zip(val_self, val_other)] # pyright: ignore[reportOperatorIssue]
                 max_diff = max(diffs) if diffs else sp.Rational(0)
                 matches = max_diff <= tolerance
                 results[var_name] = (matches, max_diff)
             else:
                 # Symbolic or scalar comparison
-                diff = abs(val_self - val_other) if isinstance(val_self, sp.Expr) else None
+                diff = abs(val_self - val_other) if isinstance(val_self, sp.Expr) else None # pyright: ignore[reportOperatorIssue]
                 matches = diff <= tolerance if diff is not None else val_self == val_other
                 results[var_name] = (matches, diff)
 
@@ -296,12 +311,15 @@ class Forms:
 
         Returns:
             New Forms instance with detrended series
+
+        Raises:
+            ValueError: If forms are symbolic or not lists
         """
         if self.is_symbolic:
-            raise ValueError("Cannot remove trends from symbolic forms")
+            raise ValueError("Cannot remove trends from symbolic forms - forms must be numerical (lists)")
 
         if not isinstance(self.M_x, list) or not isinstance(self.M_y, list):
-            raise ValueError("Forms must be numerical series (lists) to detrend")
+            raise ValueError("Cannot remove trends from non-list forms - M_x and M_y must be numerical series (lists)")
 
         new_forms = Forms(M_x=remove_form_trend(self.M_x, z_positions), M_y=remove_form_trend(self.M_y, z_positions), S={})
 
@@ -323,14 +341,19 @@ class Forms:
 class SpindleConfiguration:
     """Complete physical configuration including geometry."""
 
-    indicator_positions: List[sp.Rational]
-    spindle_positions: List[sp.Rational]
+    indicator_angles: InitVar[str]
+    spindle_angles: InitVar[str]
+    indicator_positions: List[sp.Rational] = field(init=False)
+    spindle_positions: List[sp.Rational] = field(init=False)
     nominal_diameter: sp.Rational = sp.Rational(50)
     z_positions: Optional[List[sp.Rational]] = None
 
-    def __post_init__(self) -> None:
-        self.indicator_positions = [sp.Rational(p) for p in self.indicator_positions]
-        self.spindle_positions = [sp.Rational(p) for p in self.spindle_positions]
+    def __post_init__(self, indicator_positions_str, spindle_positions_str) -> None:
+        from utils import convert_str_to_sympy  # Import here to avoid circular dependency
+        self.indicator_positions = convert_str_to_sympy(indicator_positions_str) #[sp.Rational(p) for p in self.indicator_positions]
+        self.spindle_positions = convert_str_to_sympy(spindle_positions_str) #[sp.Rational(p) for p in self.spindle_positions]
+        # self.indicator_positions = [sp.Rational(p) for p in self.indicator_positions]
+        # self.spindle_positions = [sp.Rational(p) for p in self.spindle_positions]
         self.nominal_diameter = sp.Rational(self.nominal_diameter)
         if self.z_positions is not None:
             self.z_positions = [sp.Rational(z) for z in self.z_positions]
@@ -353,21 +376,25 @@ class MeasurementSeries:
     spindle_position: sp.Rational
     data_points: List[Tuple[sp.Rational, sp.Rational]]  # List of (z, I) tuples
     key: ConfigKey = field(init=False)
-    def __post_init__(self) -> None:
-        # self.indicator_position = sp.Rational(self.indicator_position)
-        # self.spindle_position = sp.Rational(self.spindle_position)
-        # because frozen=True, you must use object.__setattr__
-        object.__setattr__(self, 'indicator_position', sp.Rational(self.indicator_position))
-        object.__setattr__(self, 'spindle_position', sp.Rational(self.spindle_position))
-        object.__setattr__(self, 'key', ConfigKey(self.indicator_position, self.spindle_position))
 
-        # self.data_points = [(z, I) for z, I in self.data_points]
+    def __post_init__(self) -> None:
+        # Because frozen=True, must use object.__setattr__
+        object.__setattr__(self, "indicator_position", sp.Rational(self.indicator_position))
+        object.__setattr__(self, "spindle_position", sp.Rational(self.spindle_position))
+        object.__setattr__(self, "key", ConfigKey(self.indicator_position, self.spindle_position))
+
+        # Validate data points
         if len(self.data_points) < 2:
-            raise ValueError(f"Need at least 2 data points, got {len(self.data_points)}")
-        elif not isinstance(self.data_points[0][1], sp.Basic):
-            raise ValueError("data_points must by a sympy type. Use convert_str_to_sp for lists of floats")
+            raise ValueError(f"MeasurementSeries requires at least 2 data points at {self.key}, " f"but got {len(self.data_points)}")
+
+        if not isinstance(self.data_points[0][1], sp.Basic):
+            raise ValueError(
+                f"MeasurementSeries data_points must be sympy types at {self.key}. "
+                f"Use convert_str_to_sp() to convert lists of floats/strings."
+            )
+
         if len(set(self.get_z_values())) < 2:
-            raise ValueError("All Z values identical")
+            raise ValueError(f"All Z values are identical in MeasurementSeries at {self.key}")
 
     def get_configuration_key(self) -> ConfigKey:
         """Return ConfigKey for this measurement configuration."""
@@ -396,12 +423,57 @@ class RawMeasurementData:
             extra = actual_configs - expected_configs
             errors = []
             if missing:
-                errors.append(f"Missing: {missing}")
+                errors.append(f"Missing configurations: {missing}")
             if extra:
-                errors.append(f"Extra: {extra}")
+                errors.append(f"Extra configurations: {extra}")
             raise ValueError(". ".join(errors))
 
         self.series.sort(key=lambda s: (s.indicator_position, s.spindle_position))
+
+    @classmethod
+    def from_measurements(cls, config: SpindleConfiguration, measurements: Dict[Tuple[int, int], str]) -> "RawMeasurementData":
+        """
+        Create RawMeasurementData from measurement dictionary.
+
+        This is the recommended way to load measurement data for analysis.
+
+        Args:
+            config: Configuration with z_positions defined
+            measurements: Dict mapping (indicator_deg, spindle_deg) to comma-separated measurement string
+
+        Returns:
+            RawMeasurementData ready for analysis
+
+        Raises:
+            ValueError: If config missing z_positions or measurement count mismatch
+
+        Example:
+            >>> config = create_standard_config([0, 180], [0, 180], z_count=11)
+            >>> measurements = {
+            ...     (0, 0): "4.95, 4.87, 4.80, ...",
+            ...     (180, 0): "5.04, 5.14, 5.24, ...",
+            ...     (0, 180): "4.99, 5.01, 5.02, ...",
+            ...     (180, 180): "5.00, 5.00, 4.99, ...",
+            ... }
+            >>> raw_data = RawMeasurementData.from_measurements(config, measurements)
+        """
+        from utils import convert_str_to_sympy  # Import here to avoid circular dependency
+
+        if config.z_positions is None:
+            raise ValueError("Configuration must have z_positions defined")
+
+        series = []
+        for (ind, spin), measurement_string in measurements.items():
+            I_values = convert_str_to_sympy(measurement_string)
+
+            if len(I_values) != len(config.z_positions):
+                raise ValueError(
+                    f"Measurement count mismatch at ({ind},{spin}): " f"got {len(I_values)} values, expected {len(config.z_positions)}"
+                )
+
+            series.append(MeasurementSeries(ind, spin, list(zip(config.z_positions, I_values))))
+
+        return cls(config, series)
 
     def get_series_by_config(self, ind_pos: sp.Rational, spin_pos: sp.Rational) -> Optional[MeasurementSeries]:
         """Get measurement series for specific indicator/spindle configuration."""
@@ -443,7 +515,7 @@ class RawMeasurementData:
             I1_detrended = remove_form_trend(I1_values, z1_positions)
             I2_detrended = remove_form_trend(I2_values, z1_positions)
 
-            config_diffs = [abs(v1 - v2) for v1, v2 in zip(I1_detrended, I2_detrended)]
+            config_diffs = [abs(v1 - v2) for v1, v2 in zip(I1_detrended, I2_detrended)] # pyright: ignore[reportOperatorIssue]
             all_diffs.extend(config_diffs)
 
             max_diff = max(config_diffs)
@@ -463,14 +535,18 @@ class RawMeasurementData:
     def print_comparison(self, other: "RawMeasurementData", name1: str = "Dataset 1", name2: str = "Dataset 2"):
         """Print comparison results in readable format."""
         results = self.compare_to(other)
+
         print(f"\n{'='*70}\nCOMPARISON: {name1} vs {name2}\n{'='*70}")
-        print(f"Overall max difference (detrended): {float(results['max_difference']):.8f}")
-        print(f"Overall RMS difference (detrended): {float(results['rms_difference']):.8f}")
+        print(f"Overall max difference (detrended): {float(results['max_difference']):.8f}  ({float(results['max_difference']):.4e})")
+        print(f"Overall RMS difference (detrended): {float(results['rms_difference']):.8f}  ({float(results['rms_difference']):.4e})")
+
         print(f"\nBy configuration (detrended):")
         for key, stats in results["differences_by_config"].items():
-            print(f"  {key}:\n    Max: {float(stats['max']):.8f}  ({float(stats['max']):.4e})\n    RMS: {float(stats['rms']):.8f}  ({float(stats['rms']):.8e})")
+            print(format_comparison_stats(stats, label=f"  {key}"))
+
         if results["summary"]:
             print(f"\nConfigs with significant differences:\n  " + "\n  ".join(results["summary"]))
+
         print(f"{'='*70}")
 
 
@@ -484,12 +560,12 @@ class EquationSystem:
     """Complete symbolic equation system."""
 
     config: SpindleConfiguration
-    tilts: Tilts  # Authoritative symbolic tilts
-    forms: Forms  # Authoritative symbolic forms
+    tilt_symbols: Tilts  # Authoritative symbolic tilts
+    form_symbols: Forms  # Authoritative symbolic forms
     tilt_equations: Dict[ConfigKey, sp.Expr]  # T equations by config
     form_equations: Dict[ConfigKey, sp.Expr]  # F equations by config
     parametric_equations: Dict[ConfigKey, sp.Expr]  # I(z) = F + T*z
-    z_param: sp.Symbol  # Symbolic z parameter
+    z_symbol: sp.Symbol  # Symbolic z parameter
 
     def measurement_keys(self) -> List[ConfigKey]:
         """Return sorted list of all measurement configuration keys."""
@@ -589,16 +665,6 @@ class SolutionResult:
     def is_fully_solvable(self) -> bool:
         return len(self.free) == 0 and len(self.dependent) == 0
 
-    def preview_series(self, series, series_name):
-        if isinstance(series, list):
-            if len(series) <= 5:
-                preview = [f"{float(v):.6e}" for v in series]
-            else:
-                preview = [f"{float(v):.6e}" for v in series[:3]] + ["..."] + [f"{float(v):.6e}" for v in series[-2:]]
-            print(f"  {series_name} = [{', '.join(preview)}] ({len(series)} values)")
-        else:
-            assert series
-
     def print(self) -> None:
         """Print formatted solution result."""
         mode = "Numerical" if self.is_numerical else "Symbolic"
@@ -616,22 +682,19 @@ class SolutionResult:
             for var, val in self.independent.items():
                 if self.is_numerical and self.system_type == SystemType.TILTS:
                     print(f"  {var} = {format_tilt_angle(val)}")
-                elif self.is_numerical:
-                    if self.system_type == SystemType.FORMS:
+                elif self.is_numerical and self.system_type == SystemType.FORMS:
+                    # Use utility function for form series
+                    if self.forms_solution:
                         series = self.forms_solution[var]
-                        self.preview_series(series, var)
-                    else:
-                        print(f"  {var} = {float(val):.6f}")
+                        print("  " + util_preview_series(series, str(var)))
                 else:
                     sp.pprint(sp.Eq(var, sp.factor(val)), use_unicode=USE_UNICODE)
 
         if self.forms_solution is not None:
             print("\n--- Solved Form Series (Trend Removed) ---")
-            #forms_solution_list = self.forms_solution.to_dict()
-            for var_symbol, series in self.forms_solution.to_dict().items():
-                # series = self.forms_solution[str(var_symbol)]
-                self.preview_series(series, var_symbol)
-            
+            for var_name, series in self.forms_solution.to_dict().items():
+                print("  " + util_preview_series(series, var_name))
+
         if self.combined_solutions:
             print("\n--- Combined Solutions (Coupled Variables) ---")
             for eq in self.combined_solutions:
@@ -655,6 +718,59 @@ class SolutionResult:
                 DEBUG.warning("Residuals may indicate model mismatch")
 
         print("-" * 70)
+
+    def export_text(self) -> str:
+        """
+        Export results as plain text for copy/paste.
+
+        Returns formatted text with all solution values, suitable for
+        pasting into spreadsheets, reports, or documentation.
+
+        Returns:
+            Multi-line string with formatted results
+        """
+        lines = []
+        lines.append("=" * 70)
+        lines.append(f"{self.system_type.value.upper()} RESULTS")
+        lines.append("=" * 70)
+
+        if self.system_type == SystemType.TILTS and self.is_numerical:
+            lines.append("\nTilt Parameters:")
+            for var_name in ["alpha_x", "alpha_y", "beta_x", "beta_y", "gamma"]:
+                var = sp.Symbol(var_name)
+                if var in self.independent:
+                    val = self.independent[var]
+                    lines.append(f"  {var_name:8} = {float(val):12.6e}")
+
+            if self.dependent:
+                lines.append(f"\nCoupled Variables:")
+                lines.append(f"  {', '.join(str(v) for v in sorted(self.dependent, key=str))}")
+
+            if self.combined_solutions:
+                lines.append("\nCombined Values:")
+                for eq in self.combined_solutions:
+                    lines.append(f"  {eq}")
+
+        elif self.system_type == SystemType.FORMS and self.forms_solution:
+            lines.append(f"\nForm Errors ({len(self.config.z_positions)} Z positions, detrended):")
+            for var_name, series in self.forms_solution.to_dict().items():
+                if isinstance(series, list):
+                    # show all of the values when exporting
+                    lines.append(util_preview_series(series, var_name, show_all = True))
+                    # lines.append(f"  {var_name}: {len(series)} values")
+                    # Could optionally include statistics here
+                    # max_val = float(max(abs(v) for v in series))
+                    # lines.append(f"    Max deviation: {max_val:.6e}")
+
+        if self.residual_norm is not None:
+            lines.append(f"\nFit Quality:")
+            lines.append(f"  Residual norm: {float(self.residual_norm):.6e}")
+            if self.residuals:
+                max_residual = max(abs(r) for r in self.residuals.values())
+                lines.append(f"  Max residual:  {float(max_residual):.6e}")
+
+        lines.append("=" * 70)
+        return "\n".join(lines)
 
 
 # ============================================================================

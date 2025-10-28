@@ -7,7 +7,7 @@ Includes synthetic data generation with linear rigid body effect.
 """
 
 import sympy as sp
-from typing import Dict, List, Optional, Tuple, Callable, Set, Any
+from typing import Dict, List, Optional, Tuple, Callable, Any
 from dataclasses import dataclass
 
 from models import (
@@ -27,7 +27,15 @@ from models import (
 
 from solver import run_analysis, build_equation_system, assess_rigid_body_coupling
 
-from utils import DEBUG, format_tilt_angle, get_surface_angle, slope_from_deg, _least_squares_core, remove_form_trend, convert_str_to_sp
+from utils import (
+    DEBUG,
+    format_tilt_angle,
+    get_surface_angle,
+    slope_from_deg,
+    _least_squares_core,
+    convert_str_to_sympy,
+    create_standard_config,
+)
 
 # ============================================================================
 # Surface Profile Functions
@@ -107,60 +115,6 @@ def sinusoidal_with_noise(
     """Create a sinusoidal profile with measurement noise."""
     base = sinusoidal_profile(amplitude, wavelength, offset, phase)
     return noisy_profile(base, noise_amplitude, seed)
-
-
-def create_detrended_profile_callable_cached(profile_func: ProfileCallable, z_positions: List[sp.Rational]) -> ProfileCallable:
-    """
-    Creates a detrended version of the input profile.
-
-    DETRENDING STRATEGY:
-    This ensures forms don't contain hidden tilts, maintaining model validity.
-    The linearized model requires: I = Form + Tilt·z
-
-    Where:
-    - Forms (M, S) should have NO linear trend with z
-    - Tilts (α, β, γ) are the ONLY z-dependent terms
-
-    By pre-detrending synthetic profiles:
-    1. Forms contain only pure shape deviations
-    2. All tilt effects come from α, β, γ parameters
-    3. Model equation separation is maintained
-
-    PERFORMANCE OPTIMIZATION:
-    Pre-computes values at known z_positions and caches them.
-    Falls back to computation for other z values (e.g., rigid body offset).
-
-    Args:
-        profile_func: Original profile function
-        z_positions: Z positions where profile will be evaluated
-
-    Returns:
-        New profile function with trend removed
-    """
-    # Compute trend parameters
-    values = [profile_func(z) for z in z_positions]
-    slope, intercept = _least_squares_core(z_positions, values)
-    DEBUG.info(f"Detrending profile: Found slope={float(slope):.6f}, intercept={float(intercept):.6f}")
-
-    # Pre-compute detrended values at known positions for fast lookup
-    detrended_cache: Dict[sp.Rational, sp.Rational] = {}
-    for i, z in enumerate(z_positions):
-        # Already computed original value, just subtract trend
-        detrended_cache[z] = values[i] - (intercept + slope * z)  # pyright: ignore[reportOperatorIssue]
-
-    # Return function with cache lookup and fallback
-    def detrended_profile(z: sp.Rational) -> sp.Rational:
-        # Fast path: lookup pre-computed value
-        if z in detrended_cache:
-            return detrended_cache[z]
-
-        # Slow path: compute for new z value (e.g., rigid body offset)
-        # Skip simplify() - not needed for correctness, only cleaner display
-        raw_value = profile_func(z)
-        return raw_value - (intercept + slope * z)  # pyright: ignore[reportOperatorIssue]
-
-    return detrended_profile
-
 
 
 def create_detrended_profile_callable(profile_func: ProfileCallable, z_positions: List[sp.Rational]) -> ProfileCallable:
@@ -303,22 +257,21 @@ def generate_synthetic_data(
     # Store ground truth forms (evaluated DETRENDED profiles)
     true_forms = Forms(M_x=[M_x_detrended(z) for z in z_pos_list], M_y=[M_y_detrended(z) for z in z_pos_list], S={})
 
-    # Add surface forms
-    for var_symbol in equations.forms.surface_values(): # .to_list():
+    # Add surface forms - USE EXPLICIT KEY CONVERSION
+    for var_symbol in equations.form_symbols.surface_values():
         var_name = str(var_symbol)
-        # angle = sp.Rational(var_name[3:-1])
         angle = Forms._to_angle(var_name)
         if angle in S_detrended:
             values = [S_detrended[angle](z) for z in z_pos_list]
         else:
             # No profile given - assume flat zero
             values = [sp.S.Zero] * len(z_pos_list)
-        #true_forms.S[f"S_{{{int(angle)}}}"] = values
-        true_forms[angle] = values # pyright: ignore[reportArgumentType]
+        # Explicit key usage
+        true_forms[Forms._to_surf_key(angle)] = values
 
     # Generate measurements
     series_list: List[MeasurementSeries] = []
-    tilt_subs = {equations.tilts[name]: val for name, val in true_tilts.to_dict().items()}
+    tilt_subs = {equations.tilt_symbols[name]: val for name, val in true_tilts.to_dict().items()}
 
     for ind_pos in equations.config.indicator_positions:
         for spin_pos in equations.config.spindle_positions:
@@ -349,7 +302,6 @@ def generate_synthetic_data(
                 M_y_at_z = M_y_detrended(Z_artifact)
                 S_value = S_detrended.get(int(theta_surf_deg), flat_profile())(Z_artifact)
 
-                # F_value = sp.simplify(M_x_at_z * sp.sin(theta_ind_rad) + M_y_at_z * sp.cos(theta_ind_rad) + S_value)  # pyright: ignore[reportOperatorIssue]
                 F_value = M_x_at_z * sp.sin(theta_ind_rad) + M_y_at_z * sp.cos(theta_ind_rad) + S_value  # pyright: ignore[reportOperatorIssue]
 
                 # Note: calling simplify only once should speed things up
@@ -474,7 +426,7 @@ def compare_forms_via_measurements(
         truth_at_z = {}
         solved_at_z = {}
 
-        for var in equations.forms.to_list():
+        for var in equations.form_symbols.to_list():
             var_name = str(var)
 
             # Get values from Forms instances
@@ -521,7 +473,7 @@ def compare_forms_via_measurements(
                 raise ValueError("Incomplete substitution in solved measurement")
 
             # Now safe to compute difference
-            diff = abs(measurement_from_truth - measurement_from_solved) # pyright: ignore[reportOperatorIssue]
+            diff = abs(measurement_from_truth - measurement_from_solved)  # pyright: ignore[reportOperatorIssue]
 
             # Simplify to get numerical value
             diff = sp.simplify(diff)
@@ -644,11 +596,11 @@ def compare_results(
 
         # Build Tilts instance from complete solution
         solved_tilts = Tilts(
-            alpha_x=solved.complete_solution[equations.tilts.alpha_x],
-            alpha_y=solved.complete_solution[equations.tilts.alpha_y],
-            beta_x=solved.complete_solution[equations.tilts.beta_x],
-            beta_y=solved.complete_solution[equations.tilts.beta_y],
-            gamma=solved.complete_solution[equations.tilts.gamma],
+            alpha_x=solved.complete_solution[equations.tilt_symbols.alpha_x],
+            alpha_y=solved.complete_solution[equations.tilt_symbols.alpha_y],
+            beta_x=solved.complete_solution[equations.tilt_symbols.beta_x],
+            beta_y=solved.complete_solution[equations.tilt_symbols.beta_y],
+            gamma=solved.complete_solution[equations.tilt_symbols.gamma],
         )
 
         measurements_match = compare_tilts_via_measurements(expected_tilts, solved_tilts, equations, tolerance)
@@ -754,29 +706,29 @@ class TestLibrary:
 
     def _create_symbolic_180(self) -> TestCase:
         """Symbolic analysis of 180° setup to examine coupling."""
-        config = SpindleConfiguration(indicator_positions=[0, 180], spindle_positions=[0, 180])
+        config = SpindleConfiguration(indicator_angles='0, 180', spindle_angles='0, 180')
         return TestCase(name="Symbolic 180", description="Analyze coupling for 180° setup", config=config)
 
     def _create_symbolic_120(self) -> TestCase:
         """Symbolic analysis of 120° setup (3 indicators)."""
-        config = SpindleConfiguration(indicator_positions=[0, 120, 240], spindle_positions=[0, 120, 240])
+        config = SpindleConfiguration(indicator_angles='0, 120, 240', spindle_angles='0, 120, 240')
         return TestCase(name="Symbolic 120", description="Analyze solvability for 120° (3 indicators)", config=config)
-    
+
     def _create_symbolic_120_coupled(self) -> TestCase:
-        """Symbolic analysis of 120° setup (3 indicators)."""
-        config = SpindleConfiguration(indicator_positions=[0, 120], spindle_positions=[0, 120, 240])
+        """Symbolic analysis of 120° setup (2 indicators)."""
+        config = SpindleConfiguration(indicator_angles='0, 120', spindle_angles='0, 120, 240')
         return TestCase(name="Symbolic 120 Coupled", description="Analyze solvability for 120° (2 indicators)", config=config)
 
     def _create_symbolic_90_coupled(self) -> TestCase:
-        """Symbolic analysis of 120° setup (3 indicators)."""
-        config = SpindleConfiguration(indicator_positions=[0, 90], spindle_positions=[0, 90, 180, 270])
+        """Symbolic analysis of 90° setup."""
+        config = SpindleConfiguration(indicator_angles='0, 90', spindle_angles='0, 90, 180, 270')
         return TestCase(name="Symbolic 90 Coupled", description="Analyze solvability for 90°", config=config)
-    # --- Numerical Test Factories ---
+
+    # --- Numerical Test Factories (Using create_standard_config) ---
 
     def _create_synthetic_simple_180(self) -> TestCase:
         """Simple synthetic test with only tilts."""
-        z_pos = [sp.Rational(i * 10) for i in range(11)]
-        config = SpindleConfiguration(indicator_positions=[0, 180], spindle_positions=[0, 180], z_positions=z_pos)
+        config = create_standard_config('0, 180', '0, 180', z_step=10, z_count=11)
         eqs = build_equation_system(config)
 
         raw_data, expected_tilts, expected_forms = generate_synthetic_data(
@@ -794,8 +746,7 @@ class TestLibrary:
 
     def _create_synthetic_complex_180(self) -> TestCase:
         """Complex synthetic test with tilts and forms."""
-        z_pos = [sp.Rational(i * 10) for i in range(11)]
-        config = SpindleConfiguration(indicator_positions=[0, 180], spindle_positions=[0, 180], z_positions=z_pos)
+        config = create_standard_config('0, 180', '0, 180', z_step=10, z_count=11)
         eqs = build_equation_system(config)
 
         raw_data, expected_tilts, expected_forms = generate_synthetic_data(
@@ -818,8 +769,7 @@ class TestLibrary:
 
     def _create_synthetic_rigid_body_180(self) -> TestCase:
         """Synthetic test with rigid body Z-offset effect."""
-        z_pos = [sp.Rational(i * 10) for i in range(11)]
-        config = SpindleConfiguration(indicator_positions=[0, 180], spindle_positions=[0, 180], z_positions=z_pos, nominal_diameter=50)
+        config = create_standard_config('0, 180', '0, 180', z_step=10, z_count=11)
         eqs = build_equation_system(config)
 
         raw_data, expected_tilts, expected_forms = generate_synthetic_data(
@@ -843,8 +793,7 @@ class TestLibrary:
 
     def _create_synthetic_complex_120(self) -> TestCase:
         """Complex test with 120° setup (should be fully solvable)."""
-        z_pos = [sp.Rational(i * 10) for i in range(11)]
-        config = SpindleConfiguration(indicator_positions=[0, 120], spindle_positions=[0, 120, 240], z_positions=z_pos)
+        config = create_standard_config('0, 120', '0, 120, 240', z_step=10, z_count=11)
         eqs = build_equation_system(config)
 
         raw_data, expected_tilts, expected_forms = generate_synthetic_data(
@@ -874,14 +823,7 @@ class TestLibrary:
 
     def _create_synthetic_coupled_test(self) -> TestCase:
         """Coupled synthetic test (simple)."""
-        z_pos = [sp.Rational(i) for i in range(0, 201, 10)]
-        config = SpindleConfiguration(
-            indicator_positions=[sp.Rational(0), sp.Rational(90)],
-            spindle_positions=[sp.Rational(0), sp.Rational(90), sp.Rational(180), sp.Rational(270)],
-            nominal_diameter=sp.Rational(50),
-            z_positions=z_pos,
-        )
-
+        config = create_standard_config('0, 90', '0, 90, 180, 270', z_step=10, z_count=21)
         equations = build_equation_system(config)
 
         raw_data, expected_tilts, expected_forms = generate_synthetic_data(
@@ -899,14 +841,7 @@ class TestLibrary:
 
     def _create_synthetic_coupled_complex_test(self) -> TestCase:
         """Complex coupled synthetic test with forms."""
-        z_pos = [sp.Rational(i) for i in range(0, 201, 10)]
-        config = SpindleConfiguration(
-            indicator_positions=[sp.Rational(0), sp.Rational(90)],
-            spindle_positions=[sp.Rational(0), sp.Rational(90), sp.Rational(180), sp.Rational(270)],
-            nominal_diameter=sp.Rational(50),
-            z_positions=z_pos,
-        )
-
+        config = create_standard_config('0, 90', '0, 90, 180, 270', z_step=10, z_count=21)
         equations = build_equation_system(config)
 
         raw_data, expected_tilts, expected_forms = generate_synthetic_data(
@@ -926,17 +861,10 @@ class TestLibrary:
             expected_tilts=expected_tilts,
             expected_forms=expected_forms,
         )
-    
-    def _create_synthetic_coupled_complex_noise_test(self) -> TestCase:
-        """Complex coupled synthetic test with forms."""
-        z_pos = [sp.Rational(i) for i in range(0, 201, 10)]
-        config = SpindleConfiguration(
-            indicator_positions=[sp.Rational(0), sp.Rational(90)],
-            spindle_positions=[sp.Rational(0), sp.Rational(90), sp.Rational(180), sp.Rational(270)],
-            nominal_diameter=sp.Rational(50),
-            z_positions=z_pos,
-        )
 
+    def _create_synthetic_coupled_complex_noise_test(self) -> TestCase:
+        """Complex coupled synthetic test with forms and noise."""
+        config = create_standard_config('0, 90', '0, 90, 180, 270', z_step=10, z_count=21)
         equations = build_equation_system(config)
 
         raw_data, expected_tilts, expected_forms = generate_synthetic_data(
@@ -951,7 +879,7 @@ class TestLibrary:
         )
 
         return TestCase(
-            name="Synthetic Coupled Complex Test",
+            name="Synthetic Coupled Complex Noise Test",
             description="Tilts + sinusoidal forms with noise",
             config=config,
             raw_data=raw_data,
@@ -963,19 +891,18 @@ class TestLibrary:
 
     def _create_real_data_test_1(self) -> TestCase:
         """Real CAD data test 1."""
-        z = [sp.Rational(i * 10) for i in range(11)]
-        config = SpindleConfiguration(indicator_positions=[0, 180], spindle_positions=[0, 180], z_positions=z)
+        config = create_standard_config('0, 180', '0, 180', z_step=10, z_count=11)
 
-        I00 = convert_str_to_sp('4.98887, 4.98451, 4.98015, 4.97578, 4.97142, 4.96706, 4.96269, 4.95833, 4.95397, 4.94960, 4.94524')
-        I1800 = convert_str_to_sp('5.01527, 5.02836, 5.04145, 5.05454, 5.06763, 5.08072, 5.09381, 5.10690, 5.11999, 5.13308, 5.14617')
-        I0180 = convert_str_to_sp('4.99775, 5.01084, 5.02393, 5.03702, 5.05011, 5.06320, 5.07629, 5.08938, 5.10247, 5.11556, 5.12865')
-        I180180 = convert_str_to_sp('5.00655, 5.00219, 4.99782, 4.99346, 4.98910, 4.98473, 4.98037, 4.97601, 4.97164, 4.96728, 4.96292')
+        I00 = convert_str_to_sympy("4.98887, 4.98451, 4.98015, 4.97578, 4.97142, 4.96706, 4.96269, 4.95833, 4.95397, 4.94960, 4.94524")
+        I1800 = convert_str_to_sympy("5.01527, 5.02836, 5.04145, 5.05454, 5.06763, 5.08072, 5.09381, 5.10690, 5.11999, 5.13308, 5.14617")
+        I0180 = convert_str_to_sympy("4.99775, 5.01084, 5.02393, 5.03702, 5.05011, 5.06320, 5.07629, 5.08938, 5.10247, 5.11556, 5.12865")
+        I180180 = convert_str_to_sympy("5.00655, 5.00219, 4.99782, 4.99346, 4.98910, 4.98473, 4.98037, 4.97601, 4.97164, 4.96728, 4.96292")
 
         series = [
-            MeasurementSeries(0, 0, list(zip(z, I00))),
-            MeasurementSeries(180, 0, list(zip(z, I1800))),
-            MeasurementSeries(0, 180, list(zip(z, I0180))),
-            MeasurementSeries(180, 180, list(zip(z, I180180))),
+            MeasurementSeries(0, 0, list(zip(config.z_positions, I00))),
+            MeasurementSeries(180, 0, list(zip(config.z_positions, I1800))),
+            MeasurementSeries(0, 180, list(zip(config.z_positions, I0180))),
+            MeasurementSeries(180, 180, list(zip(config.z_positions, I180180))),
         ]
         raw = RawMeasurementData(config, series)
 
@@ -993,21 +920,26 @@ class TestLibrary:
 
     def _create_real_data_test_2(self) -> TestCase:
         """Real CAD data test 2."""
-        z = [sp.Rational(i * 10) for i in range(11)]
-        config = SpindleConfiguration(indicator_positions=[0, 180], spindle_positions=[0, 180], z_positions=z)
+        config = create_standard_config('0, 180', '0, 180', z_step=10, z_count=11)
 
-        I00 = convert_str_to_sp('4.957592, 4.87905, 4.800509, 4.721967, 4.643426, 4.564885, 4.486343, 4.407802, 4.32926, 4.250719, 4.172177')
-        I1800 = convert_str_to_sp('5.048135, 5.144131, 5.240127, 5.336123, 5.432119, 5.528115, 5.624111, 5.720108, 5.816104, 5.91210, 6.008096')
-        I0180 = convert_str_to_sp('4.976310, 4.932676, 4.889043, 4.845409, 4.801776, 4.758142, 4.714509, 4.670875, 4.627242, 4.583608, 4.539975')
-        I180180 = convert_str_to_sp('5.030635, 5.091722, 5.152810, 5.213897, 5.274984, 5.336071, 5.397159, 5.458246, 5.519333, 5.580421, 5.641508')
-
-        #string_parts = rational_string.split(',')
+        I00 = convert_str_to_sympy(
+            "4.957592, 4.87905, 4.800509, 4.721967, 4.643426, 4.564885, 4.486343, 4.407802, 4.32926, 4.250719, 4.172177"
+        )
+        I1800 = convert_str_to_sympy(
+            "5.048135, 5.144131, 5.240127, 5.336123, 5.432119, 5.528115, 5.624111, 5.720108, 5.816104, 5.91210, 6.008096"
+        )
+        I0180 = convert_str_to_sympy(
+            "4.976310, 4.932676, 4.889043, 4.845409, 4.801776, 4.758142, 4.714509, 4.670875, 4.627242, 4.583608, 4.539975"
+        )
+        I180180 = convert_str_to_sympy(
+            "5.030635, 5.091722, 5.152810, 5.213897, 5.274984, 5.336071, 5.397159, 5.458246, 5.519333, 5.580421, 5.641508"
+        )
 
         series = [
-            MeasurementSeries(0, 0, list(zip(z, I00))),
-            MeasurementSeries(180, 0, list(zip(z, I1800))),
-            MeasurementSeries(0, 180, list(zip(z, I0180))),
-            MeasurementSeries(180, 180, list(zip(z, I180180))),
+            MeasurementSeries(0, 0, list(zip(config.z_positions, I00))),
+            MeasurementSeries(180, 0, list(zip(config.z_positions, I1800))),
+            MeasurementSeries(0, 180, list(zip(config.z_positions, I0180))),
+            MeasurementSeries(180, 180, list(zip(config.z_positions, I180180))),
         ]
         raw = RawMeasurementData(config, series)
 
@@ -1023,38 +955,22 @@ class TestLibrary:
             name="Real Data 2", description="CAD data: ay=-0.4°, by=-0.1°, g=0.05°", config=config, raw_data=raw, expected_tilts=exp_t
         )
 
-    # Test 1: Compare with and without rigid body coupling
+    # --- Rigid Body Comparison Tests ---
+
     def test_rigid_body_coupling_effect(self):
         """See how much difference rigid body coupling makes."""
-        z_pos = [sp.Rational(i) for i in range(0, 101, 10)]
-        config = SpindleConfiguration(
-            indicator_positions=[sp.Rational(0), sp.Rational(180)],
-            spindle_positions=[sp.Rational(0), sp.Rational(180)],
-            nominal_diameter=sp.Rational(50),
-            z_positions=z_pos,
-        )
-
+        config = create_standard_config('0, 180', '0, 180', z_step=10, z_count=11)
         equations = build_equation_system(config)
 
         # Generate with reasonable tilts
         raw_no_coupling, _, _ = generate_synthetic_data(equations, beta_y=slope_from_deg(sp.Rational("0.1")), use_rigid_body=False)
-
         raw_with_coupling, _, _ = generate_synthetic_data(equations, beta_y=slope_from_deg(sp.Rational("0.1")), use_rigid_body=True)
 
         raw_no_coupling.print_comparison(raw_with_coupling, "Without Coupling", "With Coupling")
 
-    # Test 2: Compare against real data
     def test_rigid_body_vs_real_data_1(self):
         """Generate synthetic data and compare to real_data_1."""
-        # Use real_data_1 configuration and expected tilts
-        z_positions = [sp.Rational(i) for i in range(0, 101, 10)]
-        config = SpindleConfiguration(
-            indicator_positions=[sp.Rational(0), sp.Rational(180)],
-            spindle_positions=[sp.Rational(0), sp.Rational(180)],
-            nominal_diameter=sp.Rational(50),
-            z_positions=z_positions,
-        )
-
+        config = create_standard_config('0, 180', '0, 180', z_step=10, z_count=11)
         equations = build_equation_system(config)
 
         # Load real data
@@ -1072,16 +988,8 @@ class TestLibrary:
         synthetic_with_coupling.print_comparison(real_data.raw_data, "Synthetic (with coupling)", "Real Data 1")
 
     def test_rigid_body_vs_real_data_2(self):
-        """Generate synthetic data and compare to real_data_1."""
-        # Use real_data_1 configuration and expected tilts
-        z_positions = [sp.Rational(i) for i in range(0, 101, 10)]
-        config = SpindleConfiguration(
-            indicator_positions=[sp.Rational(0), sp.Rational(180)],
-            spindle_positions=[sp.Rational(0), sp.Rational(180)],
-            nominal_diameter=sp.Rational(50),
-            z_positions=z_positions,
-        )
-
+        """Generate synthetic data and compare to real_data_2."""
+        config = create_standard_config('0, 180', '0, 180', z_step=10, z_count=11)
         equations = build_equation_system(config)
 
         # Load real data
@@ -1101,13 +1009,11 @@ class TestLibrary:
             alpha_y=real_data.expected_tilts["alpha_y"],
             beta_y=real_data.expected_tilts["beta_y"],
             gamma=real_data.expected_tilts["gamma"],
-            use_rigid_body=True,
+            use_rigid_body=False,
         )
 
         synthetic_with_coupling.print_comparison(real_data.raw_data, "Synthetic (with coupling)", "Real Data 2")
-
         synthetic_without_coupling.print_comparison(real_data.raw_data, "Synthetic (without coupling)", "Real Data 2")
-
 
     # --- Test Management ---
 
@@ -1141,10 +1047,10 @@ class TestLibrary:
 if __name__ == "__main__":
     test_lib = TestLibrary()
 
-    # Run specific test
+    # Run specific tests
     # test_lib.run_test("synthetic_coupled")
     test_lib.run_test("synthetic_coupled_complex")
     # test_lib.run_test("symbolic_90_coupled")
-    # test_lib.run_test("real_data_2")
+    test_lib.run_test("real_data_2")
     # test_lib.test_rigid_body_coupling_effect()
     # test_lib.test_rigid_body_vs_real_data_2()

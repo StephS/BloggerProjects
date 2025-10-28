@@ -82,12 +82,13 @@ def _solve_linear_system(
     try:
         A, b = sp.linear_eq_to_matrix(system_eqs, variables)
     except Exception as e:
-        DEBUG.error(f"Failed to create matrix: {e}")
-        DEBUG.info("Equations:", title="System Equations")
+        DEBUG.error(f"Failed to create coefficient matrix from equations: {e}")
+        DEBUG.error(f"This typically means variables and equations are incompatible.")
+        DEBUG.info("System Equations:", title="Attempted System")
         [DEBUG.info(str(eq), nocaller=True) for eq in system_eqs]
-        DEBUG.info("Variables:", title="Variables")
+        DEBUG.info("Variables to solve for:", title="Variables")
         DEBUG.info(str(variables), nocaller=True)
-        raise
+        raise ValueError(f"Cannot create linear system: {e}. " f"Check that equations contain the specified variables.")
 
     rank = A.rank()
     DEBUG.info(f"Matrix rank: {rank}/{len(variables)}")
@@ -254,12 +255,12 @@ def build_equation_system(config: SpindleConfiguration) -> EquationSystem:
 
     return EquationSystem(
         config=config,
-        tilts=tilts,
-        forms=forms,
+        tilt_symbols=tilts,
+        form_symbols=forms,
         tilt_equations=tilt_equations,
         form_equations=form_equations,
         parametric_equations=parametric_equations,
-        z_param=z_i,
+        z_symbol=z_i,
     )
 
 
@@ -323,7 +324,7 @@ def solve_tilts(equations: EquationSystem, raw_data: Optional[RawMeasurementData
         # Create symbolic measurement values
         knowns = {key: sp.Symbol(f"T_{key}") for key in equations.measurement_keys()}
 
-    solution = _solve_linear_system(equations.tilt_equations, equations.tilts.to_list(), knowns)
+    solution = _solve_linear_system(equations.tilt_equations, equations.tilt_symbols.to_list(), knowns)
 
     residuals, residual_norm = None, None
     if is_numerical:
@@ -366,9 +367,9 @@ def solve_forms(
     if equations.config.z_positions is None:
         raise ValueError("Config must have z_positions")
 
-    eq_forms_list = equations.forms.to_list()
+    eq_form_symbols_list = equations.form_symbols.to_list()
     # Initialize lists for each form variable (use symbols from equations)
-    form_series: Dict[sp.Symbol, List[sp.Expr]] = {var: [] for var in eq_forms_list}
+    form_series: Dict[sp.Symbol, List[sp.Expr]] = {var: [] for var in eq_form_symbols_list}
 
     last_solution: Optional[LinearSystemSolution] = None
 
@@ -389,19 +390,19 @@ def solve_forms(
             knowns_at_z[key] = sp.simplify(F_at_z)
 
         # Solve for forms at this Z
-        solution = _solve_linear_system(equations.form_equations, eq_forms_list, knowns_at_z)
+        solution = _solve_linear_system(equations.form_equations, eq_form_symbols_list, knowns_at_z)
         last_solution = solution
 
         # Store results using equations.forms symbols
-        for var in eq_forms_list:
+        for var in eq_form_symbols_list:
             form_series[var].append(solution.complete_solution[var])
 
     # Build Forms instance with solved series (using equations.forms structure)
     # This ensures we use the SAME symbols as in equations, not new ones
-    forms_solution = Forms(M_x=form_series[equations.forms.M_x], M_y=form_series[equations.forms.M_y], S={})
+    forms_solution = Forms(M_x=form_series[equations.form_symbols.M_x], M_y=form_series[equations.form_symbols.M_y], S={})
 
     # Populate S dict using the symbols from equations.forms
-    for var in equations.forms.surface_values():
+    for var in equations.form_symbols.surface_values():
         var_name = str(var)
         forms_solution.S[var_name] = form_series[var]
 
@@ -452,7 +453,7 @@ def run_analysis(config: SpindleConfiguration, raw_data: Optional[RawMeasurement
     else:
         # Symbolic form analysis
         form_knowns = {key: sp.Symbol(f"F_{key}") for key in equations.measurement_keys()}
-        form_solution = _solve_linear_system(equations.form_equations, equations.forms.to_list(), form_knowns)
+        form_solution = _solve_linear_system(equations.form_equations, equations.form_symbols.to_list(), form_knowns)
         form_result = SolutionResult(
             system_type=SystemType.FORMS, config=equations.config, is_numerical=False, linear_solution=form_solution
         )
